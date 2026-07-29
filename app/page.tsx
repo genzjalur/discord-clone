@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase"; // sesuaikan path jika kamu simpan di utils/supabase/client
+import { supabase } from "@/lib/supabase";
 import { 
-  Hash, Plus, Smile, Image as ImageIcon, Users, 
-  Settings, LogOut, MessageSquare 
+  Hash, Plus, Smile, Image as ImageIcon, 
+  LogOut, MessageSquare, Send, X 
 } from "lucide-react";
 
 export default function Home() {
@@ -12,9 +12,13 @@ export default function Home() {
   const [newMessage, setNewMessage] = useState("");
   const [username, setUsername] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // State untuk Channel Dinamis
+  const [channels, setChannels] = useState<string[]>(["general", "mabar-game"]);
   const [activeChannel, setActiveChannel] = useState("general");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
 
-  // Format Jam
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -26,7 +30,24 @@ export default function Home() {
     }
   };
 
-  // Ambil Data Chat dari Supabase
+  // Tambah Channel Baru via Tombol +
+  const handleAddChannel = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChannelName.trim()) return;
+    
+    // Format nama channel biar lowercase & tanpa spasi (khas Discord)
+    const formattedName = newChannelName.toLowerCase().replace(/\s+/g, "-");
+    
+    if (!channels.includes(formattedName)) {
+      setChannels([...channels, formattedName]);
+      setActiveChannel(formattedName);
+    }
+    
+    setNewChannelName("");
+    setShowAddModal(false);
+  };
+
+  // Fetch Message dari Supabase
   useEffect(() => {
     const fetchMessages = async () => {
       const { data } = await supabase.from("messages").select("*").order("created_at", { ascending: true });
@@ -35,7 +56,6 @@ export default function Home() {
 
     fetchMessages();
 
-    // Realtime Listener
     const channel = supabase
       .channel("realtime-messages")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
@@ -63,7 +83,6 @@ export default function Home() {
     setNewMessage("");
   };
 
-  // Pop-up Login Sederhana (Biar Gak "User_479" Lagi)
   if (!isLoggedIn) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#313338] text-white">
@@ -95,52 +114,107 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-[#313338] text-gray-200 font-sans select-none">
+    <div className="flex h-screen bg-[#313338] text-gray-200 font-sans select-none relative">
       
-      {/* 1. SIDEBAR SERVER (Kiri Sangat) */}
+      {/* MODAL POPUP TAMBAH CHANNEL */}
+      {showAddModal && (
+        <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center">
+          <div className="bg-[#313338] w-96 rounded-lg p-6 shadow-2xl relative border border-[#232428]">
+            <button 
+              onClick={() => setShowAddModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-bold text-white mb-1">Buat Text Channel</h2>
+            <p className="text-xs text-gray-400 mb-4">Tambahkan tempat baru untuk ngobrol topik tertentu.</p>
+            
+            <form onSubmit={handleAddChannel}>
+              <div className="mb-4">
+                <label className="block text-xs font-bold uppercase text-gray-300 mb-2">Nama Channel</label>
+                <div className="flex items-center bg-[#1e1f22] rounded px-3 py-2">
+                  <Hash size={18} className="text-gray-400 mr-2" />
+                  <input
+                    type="text"
+                    required
+                    value={newChannelName}
+                    onChange={(e) => setNewChannelName(e.target.value)}
+                    placeholder="misal: lounge-santai"
+                    className="bg-transparent text-white text-sm outline-none w-full"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-white hover:underline"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium bg-indigo-500 hover:bg-indigo-600 text-white rounded transition"
+                >
+                  Buat Channel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 1. SIDEBAR SERVER (Kiri) */}
       <div className="flex flex-col items-center py-3 w-18 bg-[#1e1f22] gap-3 border-r border-[#232428]">
         <div className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-indigo-500 flex items-center justify-center text-white font-bold transition-all cursor-pointer">
           <MessageSquare size={24} />
         </div>
         <div className="w-8 h-[2px] bg-[#35363c] rounded" />
-        <div className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-emerald-500 text-emerald-500 hover:text-white flex items-center justify-center transition-all cursor-pointer">
+        
+        {/* Tombol + Sekarang Punya Fungsi Pop-up */}
+        <button 
+          onClick={() => setShowAddModal(true)}
+          title="Tambah Channel Baru"
+          className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-emerald-500 text-emerald-500 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+        >
           <Plus size={24} />
-        </div>
+        </button>
       </div>
 
-      {/* 2. SIDEBAR CHANNEL (Kiri Tengah) */}
+      {/* 2. SIDEBAR CHANNEL */}
       <div className="w-60 bg-[#2b2d31] flex flex-col justify-between border-r border-[#232428]">
         <div>
-          {/* Server Title */}
           <div className="h-12 border-b border-[#1f2023] px-4 flex items-center font-bold text-white shadow-sm">
             My Community Server
           </div>
 
-          {/* Channels List */}
           <div className="p-3">
-            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">
-              Text Channels
+            <div className="flex items-center justify-between mb-2 px-2">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Text Channels
+              </span>
+              <button 
+                onClick={() => setShowAddModal(true)} 
+                className="text-gray-400 hover:text-white"
+                title="Tambah Channel"
+              >
+                <Plus size={16} />
+              </button>
             </div>
             
-            <button 
-              onClick={() => setActiveChannel("general")}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm font-medium transition ${
-                activeChannel === "general" ? "bg-[#404249] text-white" : "text-gray-400 hover:bg-[#35373c] hover:text-gray-200"
-              }`}
-            >
-              <Hash size={18} className="text-gray-400" />
-              general
-            </button>
-            
-            <button 
-              onClick={() => setActiveChannel("mabar")}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm font-medium transition mt-1 ${
-                activeChannel === "mabar" ? "bg-[#404249] text-white" : "text-gray-400 hover:bg-[#35373c] hover:text-gray-200"
-              }`}
-            >
-              <Hash size={18} className="text-gray-400" />
-              mabar-game
-            </button>
+            {/* Daftar Channel Dinamis */}
+            {channels.map((ch) => (
+              <button 
+                key={ch}
+                onClick={() => setActiveChannel(ch)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm font-medium transition mb-1 ${
+                  activeChannel === ch ? "bg-[#404249] text-white" : "text-gray-400 hover:bg-[#35373c] hover:text-gray-200"
+                }`}
+              >
+                <Hash size={18} className="text-gray-400" />
+                {ch}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -165,9 +239,9 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 3. CHAT AREA (Tengah) */}
+      {/* 3. CHAT AREA */}
       <div className="flex-1 flex flex-col justify-between bg-[#313338]">
-        {/* Chat Header */}
+        {/* Header Chat */}
         <div className="h-12 border-b border-[#232428] px-4 flex items-center justify-between shadow-sm bg-[#313338]">
           <div className="flex items-center gap-2 font-bold text-white">
             <Hash size={24} className="text-gray-400" />
@@ -175,10 +249,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Messages List */}
+        {/* List Pesan */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
-            <div className="text-center text-gray-500 mt-10">Belum ada pesan. Ketik sesuatu di bawah!</div>
+            <div className="text-center text-gray-500 mt-10">Belum ada pesan di #{activeChannel}. Ketik sesuatu di bawah!</div>
           ) : (
             messages.map((msg, idx) => (
               <div key={idx} className="flex items-start gap-3 hover:bg-[#2e3035] -mx-4 px-4 py-1 rounded transition">
@@ -201,7 +275,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Input Box Pro */}
+        {/* Form Input Chat dengan Tombol Kirim (Send Icon) */}
         <div className="p-4">
           <form onSubmit={sendMessage} className="bg-[#383a40] rounded-lg p-2.5 flex items-center gap-3">
             <button type="button" className="text-gray-400 hover:text-white transition">
@@ -217,6 +291,18 @@ export default function Home() {
             <div className="flex items-center gap-2 text-gray-400">
               <button type="button" className="hover:text-white transition"><ImageIcon size={20} /></button>
               <button type="button" className="hover:text-white transition"><Smile size={20} /></button>
+              
+              {/* Tombol Kirim Berwarna Indigo */}
+              <button 
+                type="submit" 
+                disabled={!newMessage.trim()}
+                className={`p-1.5 rounded-full transition ${
+                  newMessage.trim() ? "bg-indigo-500 text-white hover:bg-indigo-600" : "text-gray-500 cursor-not-allowed"
+                }`}
+                title="Kirim Pesan"
+              >
+                <Send size={16} />
+              </button>
             </div>
           </form>
         </div>
