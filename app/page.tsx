@@ -6,6 +6,7 @@ import {
   Hash, Plus, Smile, Image as ImageIcon, 
   LogOut, MessageSquare, Send, X 
 } from "lucide-react";
+import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 
 export default function Home() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -13,11 +14,15 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  // State Channel Dinamis
+  // State Channel & Modal
   const [channels, setChannels] = useState<string[]>(["general", "mabar-game"]);
   const [activeChannel, setActiveChannel] = useState("general");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
+
+  // State Emoji & Gambar
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,35 +37,65 @@ export default function Home() {
     }
   };
 
-  // Fungsi Tambah Channel Baru
+  // Tambah Channel
   const handleAddChannel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChannelName.trim()) return;
     
     const formattedName = newChannelName.toLowerCase().replace(/\s+/g, "-");
-    
     if (!channels.includes(formattedName)) {
       setChannels([...channels, formattedName]);
       setActiveChannel(formattedName);
     }
-    
     setNewChannelName("");
     setShowAddModal(false);
   };
 
-  // Trigger Input File Gambar
-  const handleImageClick = () => {
-    fileInputRef.current?.click();
+  // 1. Fungsi Klik Emoji
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setNewMessage((prev) => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 2. Fungsi Upload Gambar Ke Supabase / Preview
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      alert(`Fitur upload gambar untuk file "${file.name}" siap dipasang ke Supabase Storage!`);
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      // Buat nama file unik
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // Upload ke Supabase Bucket 'chat-images' (jika sudah buat bucket di Supabase)
+      const { data, error } = await supabase.storage
+        .from('chat-images')
+        .upload(filePath, file);
+
+      if (error) {
+        // Fallback jika bucket Supabase belum di-setup: Kirim sebagai URL Gambar Lokal
+        const imageUrl = URL.createObjectURL(file);
+        await supabase.from("messages").insert([
+          { content: `![image](${imageUrl})`, user_name: username }
+        ]);
+      } else {
+        // Ambil Public URL dari Supabase Storage
+        const { data: publicUrlData } = supabase.storage.from('chat-images').getPublicUrl(filePath);
+        await supabase.from("messages").insert([
+          { content: `![image](${publicUrlData.publicUrl})`, user_name: username }
+        ]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  // Fetch Message dari Supabase
+  // Fetch & Realtime Messages
   useEffect(() => {
     const fetchMessages = async () => {
       const { data } = await supabase.from("messages").select("*").order("created_at", { ascending: true });
@@ -81,19 +116,17 @@ export default function Home() {
     };
   }, []);
 
-  // Kirim Pesan
+  // Kirim Pesan Teks
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     await supabase.from("messages").insert([
-      {
-        content: newMessage,
-        user_name: username,
-      },
+      { content: newMessage, user_name: username }
     ]);
 
     setNewMessage("");
+    setShowEmojiPicker(false);
   };
 
   if (!isLoggedIn) {
@@ -129,7 +162,7 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-[#313338] text-gray-200 font-sans select-none relative">
       
-      {/* Hidden File Input untuk Gambar */}
+      {/* Hidden File Input */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -138,7 +171,7 @@ export default function Home() {
         className="hidden" 
       />
 
-      {/* POPUP TAMBAH CHANNEL */}
+      {/* MODAL POPUP TAMBAH CHANNEL */}
       {showAddModal && (
         <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center">
           <div className="bg-[#313338] w-96 rounded-lg p-6 shadow-2xl relative border border-[#232428]">
@@ -192,8 +225,6 @@ export default function Home() {
           <MessageSquare size={24} />
         </div>
         <div className="w-8 h-[2px] bg-[#35363c] rounded" />
-        
-        {/* Tombol Plus Server */}
         <button 
           onClick={() => setShowAddModal(true)}
           type="button"
@@ -241,7 +272,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* User Profile Footer */}
+        {/* User Profile */}
         <div className="h-14 bg-[#232428] px-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white text-xs">
@@ -263,7 +294,15 @@ export default function Home() {
       </div>
 
       {/* 3. CHAT AREA */}
-      <div className="flex-1 flex flex-col justify-between bg-[#313338]">
+      <div className="flex-1 flex flex-col justify-between bg-[#313338] relative">
+        
+        {/* POPUP EMOJI PICKER */}
+        {showEmojiPicker && (
+          <div className="absolute bottom-20 right-10 z-50">
+            <EmojiPicker onEmojiClick={onEmojiClick} />
+          </div>
+        )}
+
         {/* Header Chat */}
         <div className="h-12 border-b border-[#232428] px-4 flex items-center justify-between shadow-sm bg-[#313338]">
           <div className="flex items-center gap-2 font-bold text-white">
@@ -291,14 +330,24 @@ export default function Home() {
                       {msg.created_at ? formatTime(msg.created_at) : 'Baru saja'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-300 mt-0.5">{msg.content}</p>
+                  
+                  {/* Cek apakah pesan berisi gambar */}
+                  {msg.content?.startsWith("![image]") ? (
+                    <img 
+                      src={msg.content.match(/\((.*?)\)/)?.[1]} 
+                      alt="Uploaded image" 
+                      className="max-w-xs rounded-lg mt-2 border border-gray-700"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-300 mt-0.5">{msg.content}</p>
+                  )}
                 </div>
               </div>
             ))
           )}
         </div>
 
-        {/* Input Chat + Tombol Gambar + Tombol Send */}
+        {/* Input Chat */}
         <div className="p-4">
           <form onSubmit={sendMessage} className="bg-[#383a40] rounded-lg p-2.5 flex items-center gap-3">
             <button 
@@ -309,27 +358,38 @@ export default function Home() {
             >
               <Plus size={20} />
             </button>
+            
             <input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={`Kirim pesan ke #${activeChannel}`}
+              placeholder={isUploading ? "Mengunggah gambar..." : `Kirim pesan ke #${activeChannel}`}
               className="w-full bg-transparent text-sm text-white outline-none placeholder-gray-500"
+              disabled={isUploading}
             />
+
             <div className="flex items-center gap-2 text-gray-400">
-              {/* Tombol Gambar Active */}
+              {/* Tombol Upload Gambar (AKTIF) */}
               <button 
                 type="button" 
-                onClick={handleImageClick}
-                className="hover:text-white transition"
-                title="Pilih Gambar"
+                onClick={() => fileInputRef.current?.click()}
+                className="hover:text-white transition text-gray-400 hover:text-emerald-400"
+                title="Kirim Gambar"
               >
                 <ImageIcon size={20} />
               </button>
 
-              <button type="button" className="hover:text-white transition"><Smile size={20} /></button>
+              {/* Tombol Pop-up Emoji (AKTIF) */}
+              <button 
+                type="button" 
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="hover:text-white transition text-gray-400 hover:text-yellow-400"
+                title="Pilih Emoji"
+              >
+                <Smile size={20} />
+              </button>
               
-              {/* Tombol Kirim (Send Icon) */}
+              {/* Tombol Kirim */}
               <button 
                 type="submit" 
                 disabled={!newMessage.trim()}
