@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Hash, Plus, Smile, Image as ImageIcon, 
@@ -13,11 +13,13 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  // State untuk Channel Dinamis
+  // State Channel Dinamis
   const [channels, setChannels] = useState<string[]>(["general", "mabar-game"]);
   const [activeChannel, setActiveChannel] = useState("general");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -30,12 +32,11 @@ export default function Home() {
     }
   };
 
-  // Tambah Channel Baru via Tombol +
+  // Fungsi Tambah Channel Baru
   const handleAddChannel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChannelName.trim()) return;
     
-    // Format nama channel biar lowercase & tanpa spasi (khas Discord)
     const formattedName = newChannelName.toLowerCase().replace(/\s+/g, "-");
     
     if (!channels.includes(formattedName)) {
@@ -45,6 +46,18 @@ export default function Home() {
     
     setNewChannelName("");
     setShowAddModal(false);
+  };
+
+  // Trigger Input File Gambar
+  const handleImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      alert(`Fitur upload gambar untuk file "${file.name}" siap dipasang ke Supabase Storage!`);
+    }
   };
 
   // Fetch Message dari Supabase
@@ -116,7 +129,16 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-[#313338] text-gray-200 font-sans select-none relative">
       
-      {/* MODAL POPUP TAMBAH CHANNEL */}
+      {/* Hidden File Input untuk Gambar */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept="image/*" 
+        className="hidden" 
+      />
+
+      {/* POPUP TAMBAH CHANNEL */}
       {showAddModal && (
         <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center">
           <div className="bg-[#313338] w-96 rounded-lg p-6 shadow-2xl relative border border-[#232428]">
@@ -164,16 +186,17 @@ export default function Home() {
         </div>
       )}
 
-      {/* 1. SIDEBAR SERVER (Kiri) */}
+      {/* 1. SIDEBAR SERVER */}
       <div className="flex flex-col items-center py-3 w-18 bg-[#1e1f22] gap-3 border-r border-[#232428]">
         <div className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-indigo-500 flex items-center justify-center text-white font-bold transition-all cursor-pointer">
           <MessageSquare size={24} />
         </div>
         <div className="w-8 h-[2px] bg-[#35363c] rounded" />
         
-        {/* Tombol + Sekarang Punya Fungsi Pop-up */}
+        {/* Tombol Plus Server */}
         <button 
           onClick={() => setShowAddModal(true)}
+          type="button"
           title="Tambah Channel Baru"
           className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#313338] hover:bg-emerald-500 text-emerald-500 hover:text-white flex items-center justify-center transition-all cursor-pointer"
         >
@@ -195,6 +218,7 @@ export default function Home() {
               </span>
               <button 
                 onClick={() => setShowAddModal(true)} 
+                type="button"
                 className="text-gray-400 hover:text-white"
                 title="Tambah Channel"
               >
@@ -202,7 +226,6 @@ export default function Home() {
               </button>
             </div>
             
-            {/* Daftar Channel Dinamis */}
             {channels.map((ch) => (
               <button 
                 key={ch}
@@ -275,10 +298,15 @@ export default function Home() {
           )}
         </div>
 
-        {/* Form Input Chat dengan Tombol Kirim (Send Icon) */}
+        {/* Input Chat + Tombol Gambar + Tombol Send */}
         <div className="p-4">
           <form onSubmit={sendMessage} className="bg-[#383a40] rounded-lg p-2.5 flex items-center gap-3">
-            <button type="button" className="text-gray-400 hover:text-white transition">
+            <button 
+              type="button" 
+              onClick={() => setShowAddModal(true)}
+              className="text-gray-400 hover:text-white transition"
+              title="Tambah Channel"
+            >
               <Plus size={20} />
             </button>
             <input
@@ -289,10 +317,19 @@ export default function Home() {
               className="w-full bg-transparent text-sm text-white outline-none placeholder-gray-500"
             />
             <div className="flex items-center gap-2 text-gray-400">
-              <button type="button" className="hover:text-white transition"><ImageIcon size={20} /></button>
+              {/* Tombol Gambar Active */}
+              <button 
+                type="button" 
+                onClick={handleImageClick}
+                className="hover:text-white transition"
+                title="Pilih Gambar"
+              >
+                <ImageIcon size={20} />
+              </button>
+
               <button type="button" className="hover:text-white transition"><Smile size={20} /></button>
               
-              {/* Tombol Kirim Berwarna Indigo */}
+              {/* Tombol Kirim (Send Icon) */}
               <button 
                 type="submit" 
                 disabled={!newMessage.trim()}
@@ -308,7 +345,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 4. MEMBER LIST (Kanan) */}
+      {/* 4. MEMBER LIST */}
       <div className="w-60 bg-[#2b2d31] p-4 hidden lg:block border-l border-[#232428]">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
           Online — 1
