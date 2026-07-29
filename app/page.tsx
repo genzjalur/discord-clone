@@ -6,7 +6,26 @@ import {
   Hash, Plus, Smile, Image as ImageIcon, 
   LogOut, MessageSquare, Send, X 
 } from "lucide-react";
-import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+
+// List Emoji Populer Khas Discord
+const EMOJI_LIST = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
+  "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚",
+  "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩",
+  "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣",
+  "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬",
+  "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗",
+  "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯",
+  "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐",
+  "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "🤑", "🤠", "😈",
+  "👿", "👹", "👺", "🤡", "💩", "👻", "💀", "☠️", "👽", "👾",
+  "🤖", "🎃", "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿",
+  "😾", "👋", "🤚", "🖐️", "✋", "🖖", "👌", "🤏", "✌️", "🤞",
+  "🤟", "🤘", "🤙", "👈", "👉", "👆", "🖕", "👇", "☝️", "👍",
+  "👎", "✊", "👊", "🤛", "🤜", "👏", "🙌", "👐", "🤲", "🤝",
+  "🙏", "✍️", "💅", "🤳", "💪", "🦾", "🦿", "🦵", "🦶", "👂",
+  "🔥", "❤️", "💖", "✨", "🎉", "💯", "🚀", "⚡", "🎮", "🗿"
+];
 
 export default function Home() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -37,7 +56,6 @@ export default function Home() {
     }
   };
 
-  // Tambah Channel
   const handleAddChannel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChannelName.trim()) return;
@@ -51,42 +69,23 @@ export default function Home() {
     setShowAddModal(false);
   };
 
-  // 1. Fungsi Klik Emoji
-  const onEmojiClick = (emojiData: EmojiClickData) => {
-    setNewMessage((prev) => prev + emojiData.emoji);
-    setShowEmojiPicker(false);
+  // Nambah Emoji ke Input Chat
+  const addEmoji = (emoji: string) => {
+    setNewMessage((prev) => prev + emoji);
   };
 
-  // 2. Fungsi Upload Gambar Ke Supabase / Preview
+  // Upload Gambar
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       setIsUploading(true);
-      // Buat nama file unik
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      // Upload ke Supabase Bucket 'chat-images' (jika sudah buat bucket di Supabase)
-      const { data, error } = await supabase.storage
-        .from('chat-images')
-        .upload(filePath, file);
-
-      if (error) {
-        // Fallback jika bucket Supabase belum di-setup: Kirim sebagai URL Gambar Lokal
-        const imageUrl = URL.createObjectURL(file);
-        await supabase.from("messages").insert([
-          { content: `![image](${imageUrl})`, user_name: username }
-        ]);
-      } else {
-        // Ambil Public URL dari Supabase Storage
-        const { data: publicUrlData } = supabase.storage.from('chat-images').getPublicUrl(filePath);
-        await supabase.from("messages").insert([
-          { content: `![image](${publicUrlData.publicUrl})`, user_name: username }
-        ]);
-      }
+      const imageUrl = URL.createObjectURL(file);
+      
+      await supabase.from("messages").insert([
+        { content: `![image](${imageUrl})`, user_name: username }
+      ]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -116,7 +115,7 @@ export default function Home() {
     };
   }, []);
 
-  // Kirim Pesan Teks
+  // Kirim Pesan
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -296,10 +295,30 @@ export default function Home() {
       {/* 3. CHAT AREA */}
       <div className="flex-1 flex flex-col justify-between bg-[#313338] relative">
         
-        {/* POPUP EMOJI PICKER */}
+        {/* POPUP EMOJI PICKER (DISCORD STYLE) */}
         {showEmojiPicker && (
-          <div className="absolute bottom-20 right-10 z-50">
-            <EmojiPicker onEmojiClick={onEmojiClick} />
+          <div className="absolute bottom-20 right-10 z-50 bg-[#2b2d31] border border-[#232428] rounded-xl shadow-2xl p-3 w-72 max-h-60 overflow-y-auto">
+            <div className="flex justify-between items-center mb-2 pb-1 border-b border-[#35373c]">
+              <span className="text-xs font-bold text-gray-300 uppercase">Pilih Emoji</span>
+              <button 
+                onClick={() => setShowEmojiPicker(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {EMOJI_LIST.map((emo, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => addEmoji(emo)}
+                  className="text-xl p-1.5 rounded hover:bg-[#35373c] transition transform hover:scale-125"
+                >
+                  {emo}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -336,7 +355,7 @@ export default function Home() {
                     <img 
                       src={msg.content.match(/\((.*?)\)/)?.[1]} 
                       alt="Uploaded image" 
-                      className="max-w-xs rounded-lg mt-2 border border-gray-700"
+                      className="max-w-xs rounded-lg mt-2 border border-gray-700 shadow-md"
                     />
                   ) : (
                     <p className="text-sm text-gray-300 mt-0.5">{msg.content}</p>
@@ -363,27 +382,27 @@ export default function Home() {
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={isUploading ? "Mengunggah gambar..." : `Kirim pesan ke #${activeChannel}`}
+              placeholder={isUploading ? "Mengunggah..." : `Kirim pesan ke #${activeChannel}`}
               className="w-full bg-transparent text-sm text-white outline-none placeholder-gray-500"
               disabled={isUploading}
             />
 
             <div className="flex items-center gap-2 text-gray-400">
-              {/* Tombol Upload Gambar (AKTIF) */}
+              {/* Tombol Upload Gambar */}
               <button 
                 type="button" 
                 onClick={() => fileInputRef.current?.click()}
-                className="hover:text-white transition text-gray-400 hover:text-emerald-400"
+                className="hover:text-emerald-400 transition"
                 title="Kirim Gambar"
               >
                 <ImageIcon size={20} />
               </button>
 
-              {/* Tombol Pop-up Emoji (AKTIF) */}
+              {/* Tombol Emoji */}
               <button 
                 type="button" 
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="hover:text-white transition text-gray-400 hover:text-yellow-400"
+                className="hover:text-yellow-400 transition"
                 title="Pilih Emoji"
               >
                 <Smile size={20} />
